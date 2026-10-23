@@ -14,11 +14,11 @@ import com.qualcomm.robotcore.util.Range;
  *   Stick esquerdo (X)        -> curva
  *   X                         -> segurar: lancador (os DOIS motores) na velocidade alvo
  *   A                         -> alterna o servo da FLOWER: baixa / levanta
- *   Digital para cima         -> gira o robo 180 graus sozinho (usa o IMU)
+ *   B                         -> gira o robo 180 graus sozinho (usa o IMU)
  *
  * Botoes livres, usados assim:
  *   Bumper esquerdo (LB)      -> segurar: servo do lancador empurra a bolinha
- *   B                         -> alterna o coletor ligado / desligado (comeca LIGADO)
+ *   Digital para cima         -> alterna o coletor ligado / desligado (comeca LIGADO)
  *   Y                         -> segurar: coletor ao contrario (cospe)
  *   Digital para baixo        -> cancela o giro de 180 (mexer nos gatilhos tambem cancela)
  */
@@ -62,7 +62,7 @@ public class TeleOpBasico extends LinearOpMode {
             boolean pilotoMexeu = Math.abs(potencia) > 0.1 || Math.abs(curva) > 0.1;
 
             // ---------- Giro de 180 graus ----------
-            if (gamepad1.dpadUpWasPressed() && !girando) {
+            if (gamepad1.bWasPressed() && !girando) {
                 girando  = true;
                 alvoGiro = RobotHardware.normalizaAngulo(robot.getYaw() + 180.0);
                 tempoGiro.reset();
@@ -93,7 +93,7 @@ public class TeleOpBasico extends LinearOpMode {
             }
 
             // ---------- Coletor ----------
-            if (gamepad1.bWasPressed()) {
+            if (gamepad1.dpadUpWasPressed()) {
                 coletorLigado = !coletorLigado;
             }
             if (gamepad1.y) {
