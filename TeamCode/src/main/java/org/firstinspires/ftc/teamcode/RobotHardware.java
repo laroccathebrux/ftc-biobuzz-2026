@@ -4,7 +4,10 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 /**
  * Classe que concentra todo o hardware do robo (temporada BIOBUZZ 2026-27).
@@ -50,6 +53,17 @@ public class RobotHardware {
     public static final String LAUNCHER_RIGHT = "motorLancador";     // Control Hub, motor 3
     public static final String FLOWER_SERVO   = "servo";             // Control Hub, servo 0
     public static final String FEEDER_SERVO   = "servoLancador";     // Control Hub, servo 1
+    public static final String IMU_NAME       = "imu";               // IMU interno do Control Hub
+
+    /**
+     * Como o Control Hub esta montado no robo. O IMU so da o angulo certo se isto
+     * estiver correto. LOGO = para onde aponta o logo da REV na tampa do hub;
+     * USB = para onde apontam as portas USB. CONFIRMAR no robo real.
+     */
+    public static final RevHubOrientationOnRobot.LogoFacingDirection HUB_LOGO =
+            RevHubOrientationOnRobot.LogoFacingDirection.UP;
+    public static final RevHubOrientationOnRobot.UsbFacingDirection HUB_USB =
+            RevHubOrientationOnRobot.UsbFacingDirection.FORWARD;
 
     // =====================================================================
     //  Constantes de ajuste (tunar no robo real)
@@ -109,6 +123,7 @@ public class RobotHardware {
     private DcMotorEx launcherRight;
     private Servo flowerServo;
     private Servo feederServo;   // opcional: pode nao existir no robo
+    private IMU imu;
 
     private final OpMode opMode;
 
@@ -178,7 +193,36 @@ public class RobotHardware {
             feederServo.setPosition(FEEDER_REST);
         }
 
+        // ---------- IMU (giroscopio interno do Control Hub) ----------
+        imu = hw.get(IMU.class, IMU_NAME);
+        imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(HUB_LOGO, HUB_USB)));
+        imu.resetYaw();
+
         opMode.telemetry.addData("Hardware", "Inicializado");
+    }
+
+    // =====================================================================
+    //  IMU
+    // =====================================================================
+
+    /**
+     * Angulo de guinada (yaw) em graus, de -180 a 180.
+     * Convencao da FTC: positivo = girando para a ESQUERDA (anti-horario visto de cima).
+     */
+    public double getYaw() {
+        return imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
+    }
+
+    /** Zera o yaw: a direcao atual passa a ser 0 graus. */
+    public void resetYaw() {
+        imu.resetYaw();
+    }
+
+    /** Normaliza um angulo para o intervalo -180 a 180. */
+    public static double normalizaAngulo(double graus) {
+        while (graus > 180)  graus -= 360;
+        while (graus <= -180) graus += 360;
+        return graus;
     }
 
     // =====================================================================
@@ -264,6 +308,12 @@ public class RobotHardware {
         double ticksPerSec = rpm * LAUNCHER_TICKS_PER_REV / 60.0;
         launcherRight.setVelocity(ticksPerSec);
         if (launcherLeft != null) launcherLeft.setVelocity(ticksPerSec);
+    }
+
+    /** Potencia direta nos dois motores do lancador (-1 a 1). */
+    public void setLauncherPower(double power) {
+        launcherRight.setPower(power);
+        if (launcherLeft != null) launcherLeft.setPower(power);
     }
 
     /** Gira o lancador ao contrario, devagar (para desentalar bolinha). */

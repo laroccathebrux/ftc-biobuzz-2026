@@ -3,35 +3,43 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.robotcore.util.Range;
 
 /**
- * TeleOp basico do robo (BIOBUZZ).
+ * TeleOp principal do robo (BIOBUZZ). Esquema de controle definido pelo time:
  *
- * Controles (gamepad 1):
- *   Stick esquerdo (Y)   -> frente / tras
- *   Stick direito  (X)   -> girar
- *   Gatilho esquerdo     -> segurar para modo lento
+ *   Gatilho direito (RT)      -> frente (proporcional)
+ *   Gatilho esquerdo (LT)     -> re (proporcional)
+ *   Bumper direito (RB)       -> frente a 100%
+ *   Stick esquerdo (X)        -> curva
+ *   X                         -> segurar: lancador (os DOIS motores) na velocidade alvo
+ *   A                         -> alterna o servo da FLOWER: baixa / levanta
+ *   Digital para cima         -> gira o robo 180 graus sozinho (usa o IMU)
  *
- *   Bumper direito       -> segurar: coletor para dentro
- *   Gatilho direito      -> segurar: coletor para fora (cospe)
- *
- *   Y (triangulo)        -> liga / desliga o lancador (velocidade alvo)
- *   Bumper esquerdo      -> segurar: empurra a bolinha no lancador (servoLancador)
- *   X (quadrado)         -> segurar: lancador ao contrario (desentalar)
- *
- *   A (cruz)             -> alavanca da FLOWER para baixo
- *   B (circulo)          -> alavanca da FLOWER para cima
- *
- * Para trocar a tracao para o modo "tanque" (um stick por lado), use a linha
- * comentada dentro do loop.
+ * Botoes livres, usados assim:
+ *   Bumper esquerdo (LB)      -> segurar: servo do lancador empurra a bolinha
+ *   B                         -> alterna o coletor ligado / desligado (comeca LIGADO)
+ *   Y                         -> segurar: coletor ao contrario (cospe)
+ *   Digital para baixo        -> cancela o giro de 180 (mexer nos gatilhos tambem cancela)
  */
 @TeleOp(name = "TeleOp Basico", group = "Time")
 public class TeleOpBasico extends LinearOpMode {
 
+    // ---------- Ajustes do giro de 180 ----------
+    private static final double GIRO_KP          = 0.012; // potencia por grau de erro
+    private static final double GIRO_POT_MAX     = 0.6;
+    private static final double GIRO_POT_MIN     = 0.18;  // minimo para o robo sair do lugar
+    private static final double GIRO_TOLERANCIA  = 3.0;   // graus
+    private static final double GIRO_TIMEOUT_S   = 3.0;
+
     private final RobotHardware robot = new RobotHardware(this);
     private final ElapsedTime runtime = new ElapsedTime();
+    private final ElapsedTime tempoGiro = new ElapsedTime();
 
-    private boolean launcherLigado = false;
+    private boolean flowerBaixo   = false;
+    private boolean coletorLigado = true;
+    private boolean girando       = false;
+    private double  alvoGiro      = 0;
 
     @Override
     public void runOpMode() {
@@ -45,72 +53,95 @@ public class TeleOpBasico extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // ---------- Tracao ----------
-            // Stick para frente retorna valor negativo, por isso o sinal invertido.
-            double drive = -gamepad1.left_stick_y;
-            double turn  =  gamepad1.right_stick_x;
+            // ---------- Entradas de tracao ----------
+            double potencia = gamepad1.right_trigger - gamepad1.left_trigger;
+            if (gamepad1.right_bumper) {
+                potencia = 1.0;
+            }
+            double curva = gamepad1.left_stick_x;
+            boolean pilotoMexeu = Math.abs(potencia) > 0.1 || Math.abs(curva) > 0.1;
 
-            boolean modoLento = gamepad1.left_trigger > 0.5;
-            double factor = modoLento ? RobotHardware.SLOW_MODE_FACTOR : 1.0;
+            // ---------- Giro de 180 graus ----------
+            if (gamepad1.dpadUpWasPressed() && !girando) {
+                girando  = true;
+                alvoGiro = RobotHardware.normalizaAngulo(robot.getYaw() + 180.0);
+                tempoGiro.reset();
+            }
+            if (girando && (gamepad1.dpadDownWasPressed() || pilotoMexeu
+                    || tempoGiro.seconds() > GIRO_TIMEOUT_S)) {
+                girando = false;
+            }
 
-            // Modo arcade (padrao):
-            robot.drive(drive * factor, turn * factor);
-
-            // Modo tanque (um stick por lado). Para usar, comente a linha acima e descomente esta:
-            // robot.setDrivePower(-gamepad1.left_stick_y * factor, -gamepad1.right_stick_y * factor);
+            if (girando) {
+                double erro = RobotHardware.normalizaAngulo(alvoGiro - robot.getYaw());
+                if (Math.abs(erro) <= GIRO_TOLERANCIA) {
+                    girando = false;
+                    robot.stopDrive();
+                } else {
+                    double p = Range.clip(erro * GIRO_KP, -GIRO_POT_MAX, GIRO_POT_MAX);
+                    if (Math.abs(p) < GIRO_POT_MIN) {
+                        p = Math.signum(p) * GIRO_POT_MIN;
+                    }
+                    // Erro positivo = precisa girar para a ESQUERDA (anti-horario):
+                    // roda esquerda para tras, roda direita para frente.
+                    robot.setDrivePower(-p, p);
+                }
+            } else {
+                double esq = Range.clip(potencia + curva, -1.0, 1.0);
+                double dir = Range.clip(potencia - curva, -1.0, 1.0);
+                robot.setDrivePower(esq, dir);
+            }
 
             // ---------- Coletor ----------
-            if (gamepad1.right_bumper) {
-                robot.intakeIn();
-            } else if (gamepad1.right_trigger > 0.5) {
+            if (gamepad1.bWasPressed()) {
+                coletorLigado = !coletorLigado;
+            }
+            if (gamepad1.y) {
                 robot.intakeOut();
+            } else if (coletorLigado) {
+                robot.intakeIn();
             } else {
                 robot.intakeStop();
             }
 
-            // ---------- Lancador ----------
-            // Y alterna ligado/desligado (so na borda do clique, nao enquanto segura).
-            if (gamepad1.yWasPressed()) {
-                launcherLigado = !launcherLigado;
-            }
-
+            // ---------- Lancador (X segurando aciona os dois motores) ----------
             if (gamepad1.x) {
-                robot.launcherReverse();
-            } else if (launcherLigado) {
                 robot.launcherOn();
             } else {
                 robot.launcherStop();
             }
 
-            // Bumper esquerdo empurra a bolinha; ao soltar, o empurrador recolhe.
+            // Servo do lancador: LB empurra, soltar recolhe.
             if (gamepad1.left_bumper) {
                 robot.feederPush();
             } else {
                 robot.feederRest();
             }
 
-            // ---------- Alavanca da FLOWER ----------
-            if (gamepad1.a) {
-                robot.flowerDown();
-            } else if (gamepad1.b) {
-                robot.flowerUp();
+            // ---------- Servo da FLOWER (A alterna) ----------
+            if (gamepad1.aWasPressed()) {
+                flowerBaixo = !flowerBaixo;
+                if (flowerBaixo) {
+                    robot.flowerDown();
+                } else {
+                    robot.flowerUp();
+                }
             }
 
             // ---------- Telemetria ----------
             telemetry.addData("Tempo", runtime.toString());
-            telemetry.addData("Drive / Turn", "%.2f / %.2f", drive, turn);
-            telemetry.addData("Modo lento", modoLento ? "SIM" : "nao");
-            telemetry.addData("Lancador", "%s | %.0f RPM (alvo %.0f) %s",
-                    launcherLigado ? "LIGADO" : "desligado",
-                    robot.getLauncherRpm(),
-                    RobotHardware.LAUNCHER_TARGET_RPM,
-                    (launcherLigado && robot.isLauncherAtSpeed()) ? "<< PRONTO" : "");
-            telemetry.addData("FLOWER servo", "%.2f", robot.getFlowerPosition());
-            telemetry.addData("Lancador esq / empurrador",
-                    (robot.hasLauncherLeft() ? "ok" : "NAO configurado") + " / " +
-                    (robot.hasFeeder() ? "ok" : "NAO configurado"));
-            telemetry.addData("Encoders E/D", "%d / %d",
-                    robot.getLeftPosition(), robot.getRightPosition());
+            telemetry.addData("Tracao", "pot %.2f  curva %.2f", potencia, curva);
+            telemetry.addData("Yaw (IMU)", "%.1f graus%s", robot.getYaw(),
+                    girando ? String.format("  GIRANDO para %.0f", alvoGiro) : "");
+            telemetry.addData("Lancador", "%s | %.0f RPM (alvo %.0f)%s",
+                    gamepad1.x ? "LIGADO" : "desligado",
+                    robot.getLauncherRpm(), RobotHardware.LAUNCHER_TARGET_RPM,
+                    (gamepad1.x && robot.isLauncherAtSpeed()) ? "  << PRONTO" : "");
+            telemetry.addData("Coletor", gamepad1.y ? "AO CONTRARIO" : (coletorLigado ? "ligado" : "desligado"));
+            telemetry.addData("FLOWER", flowerBaixo ? "BAIXO" : "cima");
+            telemetry.addData("Faltando na config",
+                    (robot.hasLauncherLeft() ? "" : "motorLancadorEsq ") +
+                    (robot.hasFeeder() ? "" : "servoLancador"));
             telemetry.update();
         }
 
