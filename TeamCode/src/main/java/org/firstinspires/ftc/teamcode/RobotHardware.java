@@ -132,7 +132,11 @@ public class RobotHardware {
         rightDrive.setDirection(DcMotor.Direction.FORWARD);
 
         setDriveZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        setDriveMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        // O autoteste de 2026-10-23 mostrou que os motores da tracao e do coletor
+        // estao SEM cabo de encoder. RUN_USING_ENCODER sem encoder faz o motor
+        // disparar na potencia maxima, entao usamos RUN_WITHOUT_ENCODER.
+        // Quando os cabos de encoder forem ligados, trocar para RUN_USING_ENCODER.
+        setDriveMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         // ---------- Coletor ----------
         intake = hw.get(DcMotorEx.class, INTAKE);
