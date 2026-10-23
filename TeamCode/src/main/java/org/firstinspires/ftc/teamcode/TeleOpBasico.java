@@ -16,6 +16,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *   Gatilho direito      -> segurar: coletor para fora (cospe)
  *
  *   Y (triangulo)        -> liga / desliga o lancador (velocidade alvo)
+ *   Bumper esquerdo      -> segurar: empurra a bolinha no lancador (servoLancador)
  *   X (quadrado)         -> segurar: lancador ao contrario (desentalar)
  *
  *   A (cruz)             -> alavanca da FLOWER para baixo
@@ -81,6 +82,13 @@ public class TeleOpBasico extends LinearOpMode {
                 robot.launcherStop();
             }
 
+            // Bumper esquerdo empurra a bolinha; ao soltar, o empurrador recolhe.
+            if (gamepad1.left_bumper) {
+                robot.feederPush();
+            } else {
+                robot.feederRest();
+            }
+
             // ---------- Alavanca da FLOWER ----------
             if (gamepad1.a) {
                 robot.flowerDown();
@@ -98,6 +106,9 @@ public class TeleOpBasico extends LinearOpMode {
                     RobotHardware.LAUNCHER_TARGET_RPM,
                     (launcherLigado && robot.isLauncherAtSpeed()) ? "<< PRONTO" : "");
             telemetry.addData("FLOWER servo", "%.2f", robot.getFlowerPosition());
+            telemetry.addData("Lancador esq / empurrador",
+                    (robot.hasLauncherLeft() ? "ok" : "NAO configurado") + " / " +
+                    (robot.hasFeeder() ? "ok" : "NAO configurado"));
             telemetry.addData("Encoders E/D", "%d / %d",
                     robot.getLeftPosition(), robot.getRightPosition());
             telemetry.update();

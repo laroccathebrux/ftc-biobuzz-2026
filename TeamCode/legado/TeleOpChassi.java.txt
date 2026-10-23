@@ -1,0 +1,121 @@
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.Range;
+
+@TeleOp(name = "TeleOpChassi", group = "TeleOp")
+public class TeleOpChassi extends LinearOpMode {
+
+    // Chassi
+    private DcMotor motorEsq;
+    private DcMotor motorDir;
+
+    // Motor extra (liga assim que a programação inicia)
+    private DcMotor motorExtra;
+
+    // Servo principal (botão A)
+    private Servo servo;
+
+    // Motor + servo do lançador (botão X)
+    private DcMotor motorLancador;
+    private Servo servoLancador;
+
+    // Posições do servo principal: 1.0 = 1 rotação (360°), 0.0 = posição original
+    private static final double SERVO_POS_INICIAL = 1.0;
+    private static final double SERVO_POS_GIRO = 0.63;
+
+    // Posições do servo do lançador (botão X)
+    private static final double SERVO_LANCADOR_INICIAL = 0.0;
+    private static final double SERVO_LANCADOR_ACIONADO = 1.0;
+
+    private boolean servoGirado = false;
+    private boolean aAnterior = false;
+
+    @Override
+    public void runOpMode() {
+        motorEsq = hardwareMap.get(DcMotor.class, "motorEsq");
+        motorDir = hardwareMap.get(DcMotor.class, "motorDir");
+        motorExtra = hardwareMap.get(DcMotor.class, "motorExtra");
+        servo = hardwareMap.get(Servo.class, "servo");
+        motorLancador = hardwareMap.get(DcMotor.class, "motorLancador");
+        servoLancador = hardwareMap.get(Servo.class, "servoLancador");
+
+        // Ajuste conforme a montagem do seu robô
+        motorEsq.setDirection(DcMotorSimple.Direction.REVERSE);
+        motorDir.setDirection(DcMotorSimple.Direction.FORWARD);
+        motorExtra.setDirection(DcMotorSimple.Direction.FORWARD); // positivo = horário
+        motorLancador.setDirection(DcMotorSimple.Direction.REVERSE);   // potência positiva = anti-horário
+        servoLancador.setDirection(Servo.Direction.FORWARD);           // se girar no sentido horário, troque para REVERSE
+
+        servo.setPosition(SERVO_POS_INICIAL);
+        servoLancador.setPosition(SERVO_LANCADOR_INICIAL);
+
+        telemetry.addLine("Pronto. Aperte START.");
+        telemetry.update();
+
+        waitForStart();
+
+        // Motor extra gira desde o início da programação
+        motorExtra.setPower(1.0);
+
+        while (opModeIsActive()) {
+
+            // ---------- CHASSI ----------
+            // LT = frente, RT = ré, analógico esquerdo (eixo X) = curva
+            double potencia = gamepad1.left_trigger - gamepad1.right_trigger;
+
+            // LB = frente na velocidade máxima, RB = ré na velocidade máxima
+            if (gamepad1.left_bumper) {
+                potencia = 1.0;
+            } else if (gamepad1.right_bumper) {
+                potencia = -1.0;
+            }
+
+            double curva = gamepad1.left_stick_x;
+
+            double potEsq = Range.clip(potencia + curva, -1.0, 1.0);
+            double potDir = Range.clip(potencia - curva, -1.0, 1.0);
+
+            motorEsq.setPower(potEsq);
+            motorDir.setPower(potDir);
+
+            // ---------- SERVO (botão A) ----------
+            // 1º aperto: gira 1 rotação | 2º aperto: volta à posição original
+            boolean aAtual = gamepad1.a;
+            if (aAtual && !aAnterior) {
+                servoGirado = !servoGirado;
+                servo.setPosition(servoGirado ? SERVO_POS_GIRO : SERVO_POS_INICIAL);
+            }
+            aAnterior = aAtual;
+
+            // ---------- MOTOR + SERVO DO LANÇADOR (botão X) ----------
+            // Enquanto X estiver pressionado, o motor gira e o servo gira no sentido anti-horário; ao soltar, o motor para e o servo permanece onde está
+            if (gamepad1.x) {
+                motorLancador.setPower(0.8);
+                servoLancador.setPosition(SERVO_LANCADOR_ACIONADO);
+            } else {
+                motorLancador.setPower(0.0);
+            }
+            
+            if (gamepad1.y) {
+               motorExtra.setPower(-1.0);
+            } else {
+                motorExtra.setPower(1.0);
+            }
+
+            telemetry.addData("Chassi Esq/Dir", "%.2f / %.2f", potEsq, potDir);
+            telemetry.addData("Servo (A)", servoGirado ? "girado" : "posição original");
+            telemetry.addData("Lançador (X)", gamepad1.x ? "ligado" : "desligado");
+            telemetry.update();
+        }
+
+        motorEsq.setPower(0);
+        motorDir.setPower(0);
+        motorExtra.setPower(0);
+        motorLancador.setPower(0);
+    }
+}

@@ -25,14 +25,31 @@ import com.qualcomm.robotcore.hardware.Servo;
 public class RobotHardware {
 
     // =====================================================================
-    //  Nomes na configuracao do Driver Station
+    //  Nomes na configuracao do Driver Station (arquivo "autonomo.xml")
+    //
+    //  As portas NAO sao definidas no codigo: elas ficam na configuracao do
+    //  robo (Driver Station > Configure Robot). O que o codigo usa e o NOME.
+    //  Os nomes abaixo sao os que o time ja cadastrou na configuracao.
+    //
+    //  Nome              Hub             Porta       Tipo na configuracao
+    //  ----------------  --------------  ----------  ---------------------------------
+    //  motorEsq          Control Hub     Motor 0     REV 40:1 HD Hex Motor
+    //  motorExtra        Control Hub     Motor 1     REV Core Hex Motor (coletor)
+    //  motorDir          Control Hub     Motor 2     REV 40:1 HD Hex Motor
+    //  motorLancador     Control Hub     Motor 3     REV 40:1 HD Hex Motor (lancador direito)
+    //  motorLancadorEsq  Expansion Hub   Motor 0     (AINDA NAO CADASTRADO: lancador esquerdo)
+    //  servo             Control Hub     Servo 0     Servo (alavanca da FLOWER)
+    //  servoLancador     Control Hub     Servo 1     Servo (empurra a bolinha no lancador)
+    //  imu               Control Hub     interno     IMU BHI260AP (giroscopio do hub)
+    //  Webcam 1          Control Hub     USB         (AINDA NAO CADASTRADA: Logitech C270)
     // =====================================================================
-    public static final String LEFT_DRIVE     = "left_drive";
-    public static final String RIGHT_DRIVE    = "right_drive";
-    public static final String INTAKE         = "intake";
-    public static final String LAUNCHER_LEFT  = "launcher_left";
-    public static final String LAUNCHER_RIGHT = "launcher_right";
-    public static final String FLOWER_SERVO   = "flower_servo";
+    public static final String LEFT_DRIVE     = "motorEsq";          // Control Hub, motor 0
+    public static final String RIGHT_DRIVE    = "motorDir";          // Control Hub, motor 2
+    public static final String INTAKE         = "motorExtra";        // Control Hub, motor 1
+    public static final String LAUNCHER_LEFT  = "motorLancadorEsq";  // Expansion Hub, motor 0
+    public static final String LAUNCHER_RIGHT = "motorLancador";     // Control Hub, motor 3
+    public static final String FLOWER_SERVO   = "servo";             // Control Hub, servo 0
+    public static final String FEEDER_SERVO   = "servoLancador";     // Control Hub, servo 1
 
     // =====================================================================
     //  Constantes de ajuste (tunar no robo real)
@@ -51,22 +68,33 @@ public class RobotHardware {
      */
     public static final double LAUNCHER_TICKS_PER_REV = 28.0;
 
-    /** Velocidade alvo do lancador em RPM. AJUSTAR testando a distancia de tiro. */
-    public static final double LAUNCHER_TARGET_RPM = 3000.0;
+    /**
+     * Velocidade alvo do lancador em RPM do eixo do motor (maximo ~6000).
+     * O codigo antigo do time usava potencia 0.8, que equivale a ~4800 RPM sem carga.
+     * AJUSTAR testando a distancia de tiro.
+     */
+    public static final double LAUNCHER_TARGET_RPM = 4500.0;
 
     /** Tolerancia (em RPM) para considerar o lancador "na velocidade". */
     public static final double LAUNCHER_RPM_TOLERANCE = 100.0;
 
-    /** Posicoes do servo da FLOWER (0 a 1). AJUSTAR no robo real. */
-    public static final double FLOWER_UP   = 0.2;
-    public static final double FLOWER_DOWN = 0.8;
+    /** Posicoes do servo da FLOWER (0 a 1). Valores vindos do codigo antigo do time. */
+    public static final double FLOWER_UP   = 1.0;   // posicao inicial
+    public static final double FLOWER_DOWN = 0.63;  // posicao "girada"
+
+    /** Posicoes do servo que empurra a bolinha no lancador. Valores do codigo antigo. */
+    public static final double FEEDER_REST = 0.0;
+    public static final double FEEDER_PUSH = 1.0;
 
     /**
-     * Tracao: HD Hex (28 ticks/volta) com UltraPlanetary 20:1 = 560 ticks por volta da roda.
-     * Roda do kit REV: 90 mm de diametro. CONFIRMAR a reducao e a roda do robo.
+     * Tracao: HD Hex (28 ticks/volta do eixo do motor) com caixa de reducao.
+     * A configuracao do robo cadastra os motores como "40:1 HD Hex", entao
+     * assumimos 40:1 = 1120 ticks por volta da roda. CONFIRMAR olhando a
+     * etiqueta da caixa de reducao (40:1 fixa ou UltraPlanetary com cartuchos).
+     * Roda do kit REV: 90 mm de diametro.
      */
     public static final double DRIVE_TICKS_PER_MOTOR_REV = 28.0;
-    public static final double DRIVE_GEAR_RATIO          = 20.0;
+    public static final double DRIVE_GEAR_RATIO          = 40.0;
     public static final double WHEEL_DIAMETER_CM         = 9.0;
     public static final double DRIVE_TICKS_PER_CM =
             (DRIVE_TICKS_PER_MOTOR_REV * DRIVE_GEAR_RATIO) / (Math.PI * WHEEL_DIAMETER_CM);
@@ -80,6 +108,7 @@ public class RobotHardware {
     private DcMotorEx launcherLeft;
     private DcMotorEx launcherRight;
     private Servo flowerServo;
+    private Servo feederServo;   // opcional: pode nao existir no robo
 
     private final OpMode opMode;
 
@@ -112,27 +141,38 @@ public class RobotHardware {
         intake.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         // ---------- Lancador ----------
-        launcherLeft  = hw.get(DcMotorEx.class, LAUNCHER_LEFT);
         launcherRight = hw.get(DcMotorEx.class, LAUNCHER_RIGHT);
+        // O motor esquerdo fica no Expansion Hub. tryGet() devolve null se ele ainda
+        // nao estiver na configuracao, e o robo continua funcionando com um motor so.
+        launcherLeft  = hw.tryGet(DcMotorEx.class, LAUNCHER_LEFT);
 
         // Os dois motores ficam um de cada lado da bolinha, entao giram em sentidos opostos.
         // Se a bolinha for para tras, inverta os dois.
-        launcherLeft.setDirection(DcMotor.Direction.FORWARD);
         launcherRight.setDirection(DcMotor.Direction.REVERSE);
-
         // FLOAT: o lancador desacelera sozinho em vez de frear bruscamente.
-        launcherLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         launcherRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-
         // Controle de velocidade por encoder (setVelocity exige RUN_USING_ENCODER).
-        launcherLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         launcherRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        launcherLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         launcherRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        if (launcherLeft != null) {
+            launcherLeft.setDirection(DcMotor.Direction.FORWARD);
+            launcherLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            launcherLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            launcherLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        } else {
+            opMode.telemetry.addData("AVISO", "'" + LAUNCHER_LEFT + "' nao esta na configuracao");
+        }
 
         // ---------- Servo da FLOWER ----------
         flowerServo = hw.get(Servo.class, FLOWER_SERVO);
         flowerServo.setPosition(FLOWER_UP);
+
+        // ---------- Servo do lancador (opcional) ----------
+        feederServo = hw.tryGet(Servo.class, FEEDER_SERVO);
+        if (feederServo != null) {
+            feederServo.setPosition(FEEDER_REST);
+        }
 
         opMode.telemetry.addData("Hardware", "Inicializado");
     }
@@ -218,25 +258,33 @@ public class RobotHardware {
     /** Gira o lancador em uma velocidade especifica, em RPM. */
     public void setLauncherRpm(double rpm) {
         double ticksPerSec = rpm * LAUNCHER_TICKS_PER_REV / 60.0;
-        launcherLeft.setVelocity(ticksPerSec);
         launcherRight.setVelocity(ticksPerSec);
+        if (launcherLeft != null) launcherLeft.setVelocity(ticksPerSec);
     }
 
     /** Gira o lancador ao contrario, devagar (para desentalar bolinha). */
     public void launcherReverse() {
-        launcherLeft.setPower(-0.5);
         launcherRight.setPower(-0.5);
+        if (launcherLeft != null) launcherLeft.setPower(-0.5);
     }
 
     public void launcherStop() {
-        launcherLeft.setVelocity(0);
         launcherRight.setVelocity(0);
+        if (launcherLeft != null) launcherLeft.setVelocity(0);
     }
 
-    /** Velocidade media atual do lancador, em RPM. */
+    /** Velocidade media atual do lancador, em RPM (do eixo do motor). */
     public double getLauncherRpm() {
-        double avgTicksPerSec = (launcherLeft.getVelocity() + launcherRight.getVelocity()) / 2.0;
-        return avgTicksPerSec * 60.0 / LAUNCHER_TICKS_PER_REV;
+        double ticksPerSec = launcherRight.getVelocity();
+        if (launcherLeft != null) {
+            ticksPerSec = (ticksPerSec + launcherLeft.getVelocity()) / 2.0;
+        }
+        return ticksPerSec * 60.0 / LAUNCHER_TICKS_PER_REV;
+    }
+
+    /** True se o motor esquerdo do lancador foi encontrado na configuracao. */
+    public boolean hasLauncherLeft() {
+        return launcherLeft != null;
     }
 
     /** True quando o lancador esta dentro da tolerancia da velocidade alvo. */
@@ -258,6 +306,24 @@ public class RobotHardware {
 
     public double getFlowerPosition() {
         return flowerServo.getPosition();
+    }
+
+    // =====================================================================
+    //  Servo do lancador (empurra a bolinha para a roda)
+    // =====================================================================
+
+    public boolean hasFeeder() {
+        return feederServo != null;
+    }
+
+    /** Empurra a bolinha para dentro do lancador. */
+    public void feederPush() {
+        if (feederServo != null) feederServo.setPosition(FEEDER_PUSH);
+    }
+
+    /** Recolhe o empurrador para receber a proxima bolinha. */
+    public void feederRest() {
+        if (feederServo != null) feederServo.setPosition(FEEDER_REST);
     }
 
     /** Para tudo que se move. Chamar ao final do OpMode. */
