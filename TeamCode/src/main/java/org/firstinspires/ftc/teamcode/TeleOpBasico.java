@@ -22,7 +22,7 @@ import com.qualcomm.robotcore.util.Range;
  *   Y                         -> segurar: coletor ao contrario (cospe)
  *   Digital para baixo        -> cancela o giro de 180 (mexer nos gatilhos tambem cancela)
  */
-@TeleOp(name = "TeleOp Basico", group = "Time")
+@TeleOp(name = "TeleOp Time", group = "Time")
 public class TeleOpBasico extends LinearOpMode {
 
     // ---------- Ajustes do giro de 180 ----------

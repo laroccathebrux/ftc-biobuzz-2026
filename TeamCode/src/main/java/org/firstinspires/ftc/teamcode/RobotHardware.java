@@ -60,10 +60,12 @@ public class RobotHardware {
      * estiver correto. LOGO = para onde aponta o logo da REV na tampa do hub;
      * USB = para onde apontam as portas USB. CONFIRMAR no robo real.
      */
+    // 2026-10-23, confirmado pelo time: hub deitado (logo para CIMA) com as
+    // portas USB apontando para a ESQUERDA do robo (visto por tras).
     public static final RevHubOrientationOnRobot.LogoFacingDirection HUB_LOGO =
             RevHubOrientationOnRobot.LogoFacingDirection.UP;
     public static final RevHubOrientationOnRobot.UsbFacingDirection HUB_USB =
-            RevHubOrientationOnRobot.UsbFacingDirection.FORWARD;
+            RevHubOrientationOnRobot.UsbFacingDirection.LEFT;
 
     // =====================================================================
     //  Constantes de ajuste (tunar no robo real)
@@ -142,9 +144,11 @@ public class RobotHardware {
         rightDrive = hw.get(DcMotorEx.class, RIGHT_DRIVE);
 
         // Os motores ficam espelhados no chassi, entao um lado precisa ser invertido.
-        // Se o robo andar para tras ao empurrar o stick para frente, troque os dois.
-        leftDrive.setDirection(DcMotor.Direction.REVERSE);
-        rightDrive.setDirection(DcMotor.Direction.FORWARD);
+        // Teste de 2026-10-23: com ESQ=REVERSE/DIR=FORWARD (como no TeleOpChassi antigo)
+        // o robo andava para TRAS com potencia positiva. Por isso os dois estao trocados.
+        // Se o robo andar para tras com o RT, troque os dois de novo.
+        leftDrive.setDirection(DcMotor.Direction.FORWARD);
+        rightDrive.setDirection(DcMotor.Direction.REVERSE);
 
         setDriveZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         // O autoteste de 2026-10-23 mostrou que os motores da tracao e do coletor
