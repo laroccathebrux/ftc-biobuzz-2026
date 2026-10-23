@@ -26,7 +26,7 @@ import com.qualcomm.robotcore.util.Range;
 public class TeleOpBasico extends LinearOpMode {
 
     /** Aparece na telemetria para sabermos qual versao esta instalada no hub. */
-    private static final String VERSAO = "v3 (giro no B)";
+    private static final String VERSAO = "v4 (giro corrigido)";
 
     // ---------- Ajustes do giro de 180 ----------
     private static final double GIRO_KP          = 0.012; // potencia por grau de erro
@@ -34,6 +34,12 @@ public class TeleOpBasico extends LinearOpMode {
     private static final double GIRO_POT_MIN     = 0.18;  // minimo para o robo sair do lugar
     private static final double GIRO_TOLERANCIA  = 3.0;   // graus
     private static final double GIRO_TIMEOUT_S   = 3.0;
+    /**
+     * Sentido do giro em relacao ao IMU. Se o robo "dancar" de um lado para o
+     * outro em vez de girar, troque o sinal (+1.0 <-> -1.0).
+     * Ficou -1.0 depois que os motores da tracao foram invertidos em 2026-10-23.
+     */
+    private static final double GIRO_SENTIDO     = -1.0;
 
     private final RobotHardware robot = new RobotHardware(this);
     private final ElapsedTime runtime = new ElapsedTime();
@@ -86,9 +92,9 @@ public class TeleOpBasico extends LinearOpMode {
                     if (Math.abs(p) < GIRO_POT_MIN) {
                         p = Math.signum(p) * GIRO_POT_MIN;
                     }
-                    // Erro positivo = precisa girar para a ESQUERDA (anti-horario):
-                    // roda esquerda para tras, roda direita para frente.
-                    robot.setDrivePower(-p, p);
+                    // Erro positivo = precisa girar para a ESQUERDA (anti-horario).
+                    // GIRO_SENTIDO ajusta qual lado vai para frente nesse robo.
+                    robot.setDrivePower(-p * GIRO_SENTIDO, p * GIRO_SENTIDO);
                 }
             } else {
                 double esq = Range.clip(potencia + curva, -1.0, 1.0);
