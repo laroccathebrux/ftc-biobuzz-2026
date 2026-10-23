@@ -25,6 +25,9 @@ import com.qualcomm.robotcore.util.Range;
 @TeleOp(name = "TeleOp Time", group = "Time")
 public class TeleOpBasico extends LinearOpMode {
 
+    /** Aparece na telemetria para sabermos qual versao esta instalada no hub. */
+    private static final String VERSAO = "v3 (giro no B)";
+
     // ---------- Ajustes do giro de 180 ----------
     private static final double GIRO_KP          = 0.012; // potencia por grau de erro
     private static final double GIRO_POT_MAX     = 0.6;
@@ -45,6 +48,7 @@ public class TeleOpBasico extends LinearOpMode {
     public void runOpMode() {
         robot.init();
 
+        telemetry.addData("Versao", VERSAO);
         telemetry.addData("Status", "Pronto. Aperte START.");
         telemetry.update();
 
@@ -129,7 +133,12 @@ public class TeleOpBasico extends LinearOpMode {
             }
 
             // ---------- Telemetria ----------
+            telemetry.addData("Versao", VERSAO);
             telemetry.addData("Tempo", runtime.toString());
+            telemetry.addData("Botoes", "A=%s B=%s X=%s Y=%s  cima=%s baixo=%s",
+                    gamepad1.a ? "1" : "0", gamepad1.b ? "1" : "0",
+                    gamepad1.x ? "1" : "0", gamepad1.y ? "1" : "0",
+                    gamepad1.dpad_up ? "1" : "0", gamepad1.dpad_down ? "1" : "0");
             telemetry.addData("Tracao", "pot %.2f  curva %.2f", potencia, curva);
             telemetry.addData("Yaw (IMU)", "%.1f graus%s", robot.getYaw(),
                     girando ? String.format("  GIRANDO para %.0f", alvoGiro) : "");

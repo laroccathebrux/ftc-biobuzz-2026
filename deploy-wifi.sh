@@ -52,13 +52,12 @@ volta_rede() {
 }
 
 echo ">> 1/4 Compilando o APK..."
-if ! ./gradlew :TeamCode:assembleDebug -q 2>&1 | grep -vE "^WARNING|obsolete|Xlint|deprecated API|Recompile|^[0-9]+ warnings"; then
-  :
+rm -f "$APK"   # garante que nao vamos instalar um APK velho se a compilacao falhar
+./gradlew :TeamCode:assembleDebug -q 2>&1 | grep -vE "^WARNING|obsolete|Xlint|deprecated API|Recompile|^[0-9]+ warnings"
+if [ "${pipestatus[1]}" -ne 0 ] || [ ! -f "$APK" ]; then
+  echo "ERRO: a compilacao falhou. Veja as mensagens acima. Nada foi instalado."; exit 1
 fi
-if [ ! -f "$APK" ]; then
-  echo "ERRO: APK nao foi gerado. Veja as mensagens acima."; exit 1
-fi
-echo ">> APK pronto: $APK"
+echo ">> APK pronto: $APK ($(date -r "$APK" '+%H:%M:%S'))"
 
 echo ">> 2/4 Conectando na rede do hub ($REDE_HUB)..."
 networksetup -setairportnetwork "$WIFI_IF" "$REDE_HUB" "$SENHA_HUB"
